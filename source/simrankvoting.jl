@@ -21,7 +21,7 @@ function setup_ballots(canprs; n_voters=100, n_cans=6, n_ranks=4)
 end
 
 
-function vote_count(ballots; quiet=true)
+function vote_count(ballots; stopstep=0, quiet=true)
     n_voters, n_ranks = size(ballots)
     n_cans = length(Set(ballots)) 
     result = Dict{Int, Int}[]
@@ -35,16 +35,26 @@ function vote_count(ballots; quiet=true)
         return winner, result
     else  # no majority winner: apply instant-runoff ranked voting   
         useranks = fill(step, n_voters) # next rank to be used per voter  TODO IS THIS THE RIGHT STEP?
-        instant_runoff!(result, ballots,  step, useranks, quiet)
+        instant_runoff!(result, ballots,  step, useranks, stopstep=stopstep, quiet=quiet)
     end
     return iswinner(result[end])[2], result
 end
 
 
-function instant_runoff!(result, ballots,  step, useranks, quiet)
+function instant_runoff!(result, ballots, step, useranks; stopstep::Int=0, quiet=true)
     n_voters, n_ranks = size(ballots)
+    stopstep =  if stopstep == 0
+                    n_ranks+5
+                elseif stopstep < 0
+                    n_ranks+5
+                elseif stopstep < 20
+                    stopstep
+                else
+                    @assert false "stopstep input must be an integer from 0 to 20"
+                end
 
-    for step = 2:n_ranks+5
+
+    for step = 2:stopstep
         # start with results at end of previous round
         push!(result, copy(result[step-1])) 
 
@@ -92,7 +102,7 @@ function instant_runoff!(result, ballots,  step, useranks, quiet)
                 quiet || begin
                             println("starting position");   pprintln(result[step])
                         end
-                minvote, losers, voteridx = find_losers(ballots, min(step-1, n_ranks), result, mode=:all)
+                minvote, losers, voteridx = find_losers(ballots, min(step-1, n_ranks), result, quiet=quiet)
                 quiet || println("Eliminating candidates: $losers")
                 reassigned = allocate_votes!(result, ballots, losers, step, voteridx, useranks)
                 quiet || begin
@@ -103,7 +113,7 @@ function instant_runoff!(result, ballots,  step, useranks, quiet)
             end
         end  # if length
     end  # for step
-    quiet || begin; println("Final outcome"); pprintln(result[step]); end
+    quiet || begin; println("Final outcome"); pprintln(result[end]); end
 end
 
 
@@ -134,18 +144,34 @@ function allocate_votes!(result, ballots, losers, step, voteridx, useranks)
     return reassigned
 end
 
+"""
+- :min -> return a single candidate with fewest 2-step votes
+- :max -> return all but the candidate with the most 2-step votes among the tied losers
+"""
+function find_losers(ballots, step, result; mode=:max, quiet=true)
+    minvote, losers = findallmins(result[step])
+    losers = collect(losers)
 
-function find_losers(ballots, step, result; mode=:all)
-    if mode == :all
-        minvote, losers = findallmins(result[step])
-        losers = collect(losers)
-    elseif mode == :first
-        minvote, losers = findmin(result[step])
-        losers = [losers]
-    else
-        @assert false "Mode must be :all or :first"
+    if length(losers) > 1 # tie among the losers
+        # find the subset of ballots
+        bsub = findall(indexin(ballots[:, step], losers) .!= nothing)
+        # get the loser runoff partial result winner
+        println("\n\n\n*** BREAK TIE AMONG LOSERS ***")
+        w = vote_count(ballots[bsub, step:end], quiet=false, stopstep=2)
+        println("*** RETURN LOSERS AFTER TIE BROKEN ***\n\n\n")
+
+        # set the list of losers
+        if mode == :max  # return losers worse than the max loser to eliminate them
+            pos = findall(indexin(losers, [w[1]]) .!= nothing)
+            deleteat!(losers, pos)
+        elseif mode == :min # return only the worst loser to eliminate him/her
+            minpair = dictcomp(w[2][end], <)
+            losers = minpair[1]
+        else
+            @assert false "mode must be either :min or :max (the default)"
+        end
     end
-
+   
     # index of voters who chose losing candidate(s)
     loseridx = findall(indexin(ballots[:, step], losers) .!= nothing)
 
@@ -204,6 +230,26 @@ end
 function circ(n, modulus)
     return n == modulus ? n : mod(n, modulus)
 end
+
+
+function dictcomp(dd, op)
+    selv =  if op == < 
+                typemax(valtype(dd)) 
+            elseif op == >
+                typemin(valtype(dd))
+            else
+                 @assert false "Op must be > or <"
+            end
+    selk = 0
+    for pr in dd
+        if op(pr[2],selv)
+            selv = pr[2]; selk = pr[1]
+        end
+    end
+    return selk=>selv
+end
+
+
 
 """
     nbtrials(;r=2, p=0.35, n_cans=6, n_ranks=4)

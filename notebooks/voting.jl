@@ -18,6 +18,7 @@ using StatsBase
 using Distributions
 using Plots
 using Random
+using BenchmarkTools
 
 # %%
 includet("../source/simrankvoting.jl")
@@ -127,10 +128,10 @@ prs = nbtrials(r=2, p=0.35, n_cans=6, n_ranks=4)
 countmap(categorical_sim(prs[:,1], n_voters))
 
 # %%
-ballots_3 = setup_ballots(prs,n_voters=100, n_cans=n_cans, n_ranks=n_ranks)
+ballots_3 = setup_ballots(prs,n_voters=10_000_000, n_cans=n_cans, n_ranks=n_ranks)
 
 # %%
-vote_count(ballots_3, quiet=false)
+vote_count(ballots_3)
 
 # %%
 ballots_4 = [
@@ -215,9 +216,68 @@ res = countmap(bsub[:,1])
 useranks = fill(1,8)
 
 # %%
-w = vote_count(bsub, quiet=false)
+w = vote_count(bsub, quiet=true, stopstep=2)
 
 # %%
 w[1]
+
+# %%
+d = Dict(5=>0,4=>1,2=>1,3=>6)
+
+# %%
+maxv = -typemin(Int)
+maxk = 0
+for pr in d
+    if pr[2] > maxv
+        maxv = pr[2]; maxk = pr[1]
+    end
+end
+(mk, mv)
+>(6,3)
+
+# %%
+function dictcomp(dd, op)
+    selv = if op == < 
+        typemax(valtype(dd)) 
+    elseif op == >
+        typemin(valtype(dd))
+    else
+        @assert false "Op must be > or <"
+    end
+    selk = 0
+    for pr in dd
+        if op(pr[2],selv)
+            selv = pr[2]; selk = pr[1]
+        end
+    end
+    return selk=>selv
+end
+            
+
+# %%
+eltype(d)
+
+# %%
+eltype(ans)
+
+# %%
+findall(indexin(ballots_5[:,1], [2,3,4,5]) .!= nothing)
+
+# %%
+losers = [4,5,3,2]
+pos = findall(indexin(losers, [3]) .!= nothing)
+deleteat!(losers, pos)
+
+# %%
+result5 = countmap(ballots_5[:,1], alg=:dict)
+
+# %%
+find_losers(ballots_5, 1, [result5])
+
+# %%
+ballots_5
+
+# %%
+vote_count(ballots_5,quiet=false)
 
 # %%
