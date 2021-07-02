@@ -37,7 +37,7 @@ function vote_count(ballots; quiet=true)
         useranks = fill(step, n_voters) # next rank to be used per voter  TODO IS THIS THE RIGHT STEP?
         instant_runoff!(result, ballots,  step, useranks, quiet)
     end
-    return result
+    return iswinner(result[end])[2], result
 end
 
 
@@ -46,7 +46,7 @@ function instant_runoff!(result, ballots,  step, useranks, quiet)
 
     for step = 2:n_ranks+5
         # start with results at end of previous round
-        push!(result, result[step-1]) 
+        push!(result, copy(result[step-1])) 
 
         if length(keys(result[step]))  == 2
             # we must either have a winner or a tie
@@ -87,7 +87,7 @@ function instant_runoff!(result, ballots,  step, useranks, quiet)
                             println("reassigned");  pprintln(reassigned)
                             println("outcome");     pprintln(result[step])
                         end
-                iswinner(result[step])[1] && break
+                iswinner(result[end])[1] && break
             else
                 quiet || begin
                             println("starting position");   pprintln(result[step])
@@ -99,7 +99,7 @@ function instant_runoff!(result, ballots,  step, useranks, quiet)
                             println("reassigned");  pprintln(reassigned)
                             println("outcome");     pprintln(result[step])  
                          end
-                iswinner(result[step])[1] && break
+                iswinner(result[end])[1] && break
             end
         end  # if length
     end  # for step
@@ -137,10 +137,10 @@ end
 
 function find_losers(ballots, step, result; mode=:all)
     if mode == :all
-        mv, losers = findallmins(result[step])
+        minvote, losers = findallmins(result[step])
         losers = collect(losers)
     elseif mode == :first
-        mv, losers = findmin(result[step])
+        minvote, losers = findmin(result[step])
         losers = [losers]
     else
         @assert false "Mode must be :all or :first"
@@ -149,7 +149,7 @@ function find_losers(ballots, step, result; mode=:all)
     # index of voters who chose losing candidate(s)
     loseridx = findall(indexin(ballots[:, step], losers) .!= nothing)
 
-    return mv, losers, loseridx
+    return minvote, losers, loseridx
 end
 
 

@@ -218,6 +218,6 @@ useranks = fill(1,8)
 w = vote_count(bsub, quiet=false)
 
 # %%
-first(w[end])[1]
+w[1]
 
 # %%
