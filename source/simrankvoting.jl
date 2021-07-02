@@ -44,7 +44,7 @@ end
 function instant_runoff!(result, ballots,  step, useranks, quiet)
     n_voters, n_ranks = size(ballots)
 
-    for step = 2:99
+    for step = 2:n_ranks+5
         # start with results at end of previous round
         push!(result, result[step-1]) 
 
@@ -53,13 +53,13 @@ function instant_runoff!(result, ballots,  step, useranks, quiet)
             quiet || println("Step $step: \ngot to exactly 2 candidates")
             if tie(result[step]) # we have a tie
                 quiet || begin
-                            println("starting position"); println("Tie!"); pprintln(result[step])
+                            println("starting position: Tie!"); pprintln(result[step])
                          end
                 losers = []; voteridx = 1:size(ballots,1) # no losers--keep call candidates; use all voters choices
                 reassigned = allocate_votes!(result, ballots, losers, step, voteridx, useranks)
                 quiet || begin
-                            println("outcome");     pprintln(result[step])
                             println("reassigned");  pprintln(reassigned)
+                            println("outcome");     pprintln(result[step])
                         end
                 break
             else
@@ -84,8 +84,8 @@ function instant_runoff!(result, ballots,  step, useranks, quiet)
                 losers = []; voteridx = 1:size(ballots,1) # no losers--keep call candidates; use all voters choices
                 reassigned = allocate_votes!(result, ballots, losers, step, voteridx, useranks)  
                 quiet || begin
-                            println("outcome");     pprintln(result[step])
                             println("reassigned");  pprintln(reassigned)
+                            println("outcome");     pprintln(result[step])
                         end
             else
                 quiet || begin
@@ -95,8 +95,8 @@ function instant_runoff!(result, ballots,  step, useranks, quiet)
                 quiet || println("Eliminating candidates: $losers")
                 reassigned = allocate_votes!(result, ballots, losers, step, voteridx, useranks)
                 quiet || begin
-                            println("outcome");     pprintln(result[step])
                             println("reassigned");  pprintln(reassigned)
+                            println("outcome");     pprintln(result[step])  
                          end
             end
         end
@@ -117,18 +117,15 @@ function allocate_votes!(result, ballots, losers, step, voteridx, useranks)
     end
     # assign votes to remaining candidates and advance these voters userank
     for i in voteridx  # loop through voters who chose losers
-        while true
-            useranks[i] = useranks[i] + 1 > n_ranks ? -99 : useranks[i] + 1 # get next ranking for this voter
-            if useranks[i] > 0
-                newvote = ballots[i, useranks[i]]
-                oldvote = ballots[i, useranks[i]-1]
-                if haskey(currentresult, newvote)
-                    currentresult[newvote] += 1 # assign votes to next choice
-                    # reassigned[newvote] += 1
-                    setindex!(reassigned, get(reassigned, oldvote=>newvote, 0) + 1, oldvote=>newvote)
-                    break
-                end
-            else
+        oldvote = ballots[i, useranks[i]]
+        while (useranks[i] += 1) <= n_ranks
+            newvote = ballots[i, useranks[i]]
+            if haskey(currentresult, newvote)
+                currentresult[newvote] += 1 # assign votes to next choice
+                setindex!(reassigned, get(reassigned, oldvote=>newvote, 0) + 1, oldvote=>newvote)
+                if haskey(currentresult, oldvote) 
+                    currentresult[oldvote] -= 1 # remove votes from the old choice for ties
+                end    
                 break
             end
         end

@@ -59,7 +59,7 @@ vote_count(ballots, quiet=false)
 vote_count(ballots)
 
 # %%
-vote_count(ballots_2)
+vote_count(ballots_2, quiet=false)
 
 # %%
 ballots_2 = [
@@ -127,15 +127,9 @@ prs = nbtrials(r=2, p=0.35, n_cans=6, n_ranks=4)
 countmap(categorical_sim(prs[:,1], n_voters))
 
 # %%
-setup_ballots(prs,n_voters=100, n_cans=n_cans, n_ranks=n_ranks)
+ballots_3 = setup_ballots(prs,n_voters=100, n_cans=n_cans, n_ranks=n_ranks)
 
 # %%
-@time iseven(4)
-
-# %%
-f(n,m) = n == m ? m : mod(n,m)
-
-# %%
-f(1,5)
+vote_count(ballots_3, quiet=false)
 
 # %%
