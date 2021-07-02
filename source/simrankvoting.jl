@@ -30,14 +30,14 @@ function vote_count(ballots; quiet=true)
     step = 1  
     push!(result, countmap(ballots[:, step]))  # this ignores candidates with zero votes--they are automatically OUT
 
-    winbool, maxpct, maxcan = iswinner(result[step])  # is there a round 1 winner?
+    winbool, winner = iswinner(result[step])  # is there a round 1 winner?
     if winbool
-        return result, maxpct, maxcan
+        return winner, result
     else  # no majority winner: apply instant-runoff ranked voting   
         useranks = fill(step, n_voters) # next rank to be used per voter  TODO IS THIS THE RIGHT STEP?
         instant_runoff!(result, ballots,  step, useranks, quiet)
     end
-
+    return result
 end
 
 
@@ -55,7 +55,7 @@ function instant_runoff!(result, ballots,  step, useranks, quiet)
                 quiet || begin
                             println("starting position: Tie!"); pprintln(result[step])
                          end
-                losers = []; voteridx = 1:size(ballots,1) # no losers--keep call candidates; use all voters choices
+                losers = []; voteridx = 1:size(ballots,1) # setup allocate for ties: no losers; use all voters choices
                 reassigned = allocate_votes!(result, ballots, losers, step, voteridx, useranks)
                 quiet || begin
                             println("reassigned");  pprintln(reassigned)
@@ -81,28 +81,29 @@ function instant_runoff!(result, ballots,  step, useranks, quiet)
                 quiet || begin
                             println("starting position"); println("Tie!"); pprintln(result[step])
                         end
-                losers = []; voteridx = 1:size(ballots,1) # no losers--keep call candidates; use all voters choices
+                losers = []; voteridx = 1:size(ballots,1) # setup allocate for ties: no losers; use all voters choices
                 reassigned = allocate_votes!(result, ballots, losers, step, voteridx, useranks)  
                 quiet || begin
                             println("reassigned");  pprintln(reassigned)
                             println("outcome");     pprintln(result[step])
                         end
+                iswinner(result[step])[1] && break
             else
                 quiet || begin
                             println("starting position");   pprintln(result[step])
                         end
-                minvote, losers, voteridx = find_losers(ballots, step-1, result, mode=:all)
+                minvote, losers, voteridx = find_losers(ballots, min(step-1, n_ranks), result, mode=:all)
                 quiet || println("Eliminating candidates: $losers")
                 reassigned = allocate_votes!(result, ballots, losers, step, voteridx, useranks)
                 quiet || begin
                             println("reassigned");  pprintln(reassigned)
                             println("outcome");     pprintln(result[step])  
                          end
+                iswinner(result[step])[1] && break
             end
-        end
-    end
-    println("Final outcome")
-    pprintln(result[step])
+        end  # if length
+    end  # for step
+    quiet || begin; println("Final outcome"); pprintln(result[step]); end
 end
 
 
@@ -162,7 +163,7 @@ end
 function iswinner(result)
     pctofvotes = Dict(i => result[i] / sum(values(result)) for i in keys(result))
     maxpct, maxcan = findmax(pctofvotes)
-    return maxpct > 0.5, maxpct, maxcan
+    return maxpct > 0.5, maxcan
 end
 
 
