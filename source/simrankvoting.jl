@@ -50,7 +50,7 @@ function instant_runoff!(result, ballots,  step, useranks, quiet)
 
         if length(keys(result[step]))  == 2
             # we must either have a winner or a tie
-            quiet || println("got to exactly 2 candidates in step $step")
+            quiet || println("Step $step: \ngot to exactly 2 candidates")
             if tie(result[step]) # we have a tie
                 quiet || begin
                             println("starting position"); println("Tie!"); pprintln(result[step])
@@ -70,13 +70,13 @@ function instant_runoff!(result, ballots,  step, useranks, quiet)
         elseif length(keys(result[step])) == 1
             # this must be the winner--or the algorithm didn't work
             quiet || begin
-                        println("got to exactly 1 candidate in step $step")
+                        println("Step $step: \ngot to exactly 1 candidate")
                         pprintln(result[step])
                      end
             break
         else   
             # we have 3 or more remaining candates
-            quiet || println("got to more than 3 candidates in step $step")
+            quiet || println("Step $step: \ngot to more than 3 candidates")
             if tie(result[step]) # we have a tie
                 quiet || begin
                             println("starting position"); println("Tie!"); pprintln(result[step])
@@ -203,6 +203,9 @@ function breakdown(ballot, type::Float64)
 end
 
 
+function circ(n, modulus)
+    return n == modulus ? n : mod(n, modulus)
+end
 
 """
     nbtrials(;r=2, p=0.35, n_cans=6, n_ranks=4)
