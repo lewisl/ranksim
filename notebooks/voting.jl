@@ -23,7 +23,7 @@ using BenchmarkTools
 # %%
 includet("../source/simrankvoting.jl")
 
-# %%
+# %% jupyter={"outputs_hidden": true} tags=[]
 # make an example
 
 ballots_1 = [
@@ -42,10 +42,7 @@ ballots_1 = [
 ]
 
 # %%
-countmap(ballots_1[:,1])
-
-# %%
-result = countmap(ballots_1[:,1])
+countmap(ballots_1[:,1], alg=:dict)
 
 # %%
 findmin(result)
@@ -83,49 +80,6 @@ breakdown(ballots_2, 1)
 
 # %%
 breakdown(ballots_2, 1.0)
-
-# %% [markdown]
-# # Create rank distribution vectors
-
-# %%
-n_cans = 6 # number of candidates
-n_ranks = 4 # how many rankings for each candidate
-n_voters = 100
-
-# %%
-r = 2  #  rth success
-p = 0.35  #  probability of success in a given trial
-# outcome is number of failures before the rth success
-nb = NegativeBinomial(r,p)
-pd = [pdf(nb,i) for i in 1:n_cans]
-sum(pd)
-
-# %%
-plot(pd)
-
-# %%
-pd
-
-# %%
-pd[:] = pd[1:end] ./ sum(pd[1:end])
-
-# %%
-sum(pd)
-
-# %%
-reverse(pd)
-
-# %%
-pd = nbtrials()
-
-# %%
-hcat([circshift(pd,i) for i in 0:n_ranks-1]...)
-
-# %%
-prs = nbtrials(r=2, p=0.35, n_cans=6, n_ranks=4)
-
-# %%
-countmap(categorical_sim(prs[:,1], n_voters))
 
 # %%
 ballots_3 = setup_ballots(prs,n_voters=10_000_000, n_cans=n_cans, n_ranks=n_ranks)
@@ -190,7 +144,19 @@ ballots_6 = [
 ]
 
 # %%
+ballots_6b = [
+  1   3   0;
+  2   1   3;
+  3   0   0;
+  1   3   0;
+  2   1   3
+]
+
+# %%
 vote_count(ballots_6, quiet=false)
+
+# %%
+vote_count(ballots_6b, quiet=false)
 
 # %% tags=[]
 ballots_7 = [
@@ -206,6 +172,55 @@ ballots_7 = [
 
 # %%
 vote_count(ballots_7)
+
+# %%
+ballots_5
+
+# %%
+vote_count(ballots_5,quiet=false)
+
+# %% [markdown]
+# # Create rank distribution vectors
+
+# %%
+n_cans = 6 # number of candidates
+n_ranks = 4 # how many rankings for each candidate
+n_voters = 100
+
+# %%
+r = 2  #  rth success
+p = 0.35  #  probability of success in a given trial
+# outcome is number of failures before the rth success
+nb = NegativeBinomial(r,p)
+pd = [pdf(nb,i) for i in 1:n_cans]
+sum(pd)
+
+# %%
+plot(pd)
+
+# %%
+pd
+
+# %%
+pd[:] = pd[1:end] ./ sum(pd[1:end])
+
+# %%
+sum(pd)
+
+# %%
+reverse(pd)
+
+# %%
+pd = nbtrials()
+
+# %%
+hcat([circshift(pd,i) for i in 0:n_ranks-1]...)
+
+# %% tags=[]
+prs = nbtrials(r=2, p=0.35, n_cans=6, n_ranks=4)
+
+# %% tags=[]
+countmap(categorical_sim(prs[:,1], n_voters))
 
 # %% [markdown]
 # ## use code to create runoff for tied "losers"
@@ -232,7 +247,7 @@ for pr in d
         maxv = pr[2]; maxk = pr[1]
     end
 end
-(mk, mv)
+(maxk, maxv)
 >(6,3)
 
 # %%
@@ -252,7 +267,7 @@ function dictcomp(dd, op)
     end
     return selk=>selv
 end
-            
+
 
 # %%
 eltype(d)
@@ -273,11 +288,5 @@ result5 = countmap(ballots_5[:,1], alg=:dict)
 
 # %%
 find_losers(ballots_5, 1, [result5])
-
-# %%
-ballots_5
-
-# %%
-vote_count(ballots_5,quiet=false)
 
 # %%

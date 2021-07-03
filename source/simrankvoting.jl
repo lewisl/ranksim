@@ -28,7 +28,9 @@ function vote_count(ballots; stopstep=0, quiet=true)
 
     # conduct first round
     step = 1  
-    push!(result, countmap(ballots[:, step]))  # this ignores candidates with zero votes--they are automatically OUT
+    res = countmap(ballots[:, step])
+    delete!(res,0) # 0 signifies voter did not chose any candidate for a given choice
+    push!(result, res)  # this ignores candidates with zero votes--they are automatically OUT
 
     winbool, winner = iswinner(result[step])  # is there a round 1 winner?
     if winbool
@@ -60,7 +62,7 @@ function instant_runoff!(result, ballots, step, useranks; stopstep::Int=0, quiet
 
         if length(keys(result[step]))  == 2
             # we must either have a winner or a tie
-            quiet || println("Step $step: \ngot to exactly 2 candidates")
+            quiet || println("\nStep $step: \ngot to exactly 2 candidates")
             if tie(result[step]) # we have a tie
                 quiet || begin
                             println("starting position: Tie!"); pprintln(result[step])
@@ -80,13 +82,13 @@ function instant_runoff!(result, ballots, step, useranks; stopstep::Int=0, quiet
         elseif length(keys(result[step])) == 1
             # this must be the winner--or the algorithm didn't work
             quiet || begin
-                        println("Step $step: \ngot to exactly 1 candidate")
+                        println("\nStep $step: \ngot to exactly 1 candidate")
                         pprintln(result[step])
                      end
             break
         else   
             # we have 3 or more remaining candates
-            quiet || println("Step $step: \ngot to more than 3 candidates")
+            quiet || println("\nStep $step: \ngot to more than 3 candidates")
             if tie(result[step]) # we have a tie
                 quiet || begin
                             println("starting position"); println("Tie!"); pprintln(result[step])
@@ -126,11 +128,18 @@ function allocate_votes!(result, ballots, losers, step, voteridx, useranks)
     for i in losers
         delete!(currentresult, i)
     end
+
     # assign votes to remaining candidates and advance these voters userank
     for i in voteridx  # loop through voters who chose losers
+        if useranks[i] > n_ranks
+            continue # voter i's ballot was exhausted by not using all ranks
+        end
         oldvote = ballots[i, useranks[i]]
         while (useranks[i] += 1) <= n_ranks
             newvote = ballots[i, useranks[i]]
+            if newvote == 0
+                continue # 0 signifies that voter i did not choose any candidate for this ranked choice
+            end
             if haskey(currentresult, newvote)
                 currentresult[newvote] += 1 # assign votes to next choice
                 setindex!(reassigned, get(reassigned, oldvote=>newvote, 0) + 1, oldvote=>newvote)
@@ -145,34 +154,43 @@ function allocate_votes!(result, ballots, losers, step, voteridx, useranks)
 end
 
 """
-- :min -> return a single candidate with fewest 2-step votes
+- :min -> return a loser candidate with fewest 2-step votes
 - :max -> return all but the candidate with the most 2-step votes among the tied losers
 """
 function find_losers(ballots, step, result; mode=:max, quiet=true)
     minvote, losers = findallmins(result[step])
     losers = collect(losers)
+    n_losers = length(losers)
 
-    if length(losers) > 1 # tie among the losers
-        # find the subset of ballots
-        bsub = findall(indexin(ballots[:, step], losers) .!= nothing)
-        # get the loser runoff partial result winner
-        println("\n\n\n*** BREAK TIE AMONG LOSERS ***")
-        w = vote_count(ballots[bsub, step:end], quiet=false, stopstep=2)
-        println("*** RETURN LOSERS AFTER TIE BROKEN ***\n\n\n")
+    if n_losers > 1 # tie among the losers
 
-        # set the list of losers
-        if mode == :max  # return losers worse than the max loser to eliminate them
-            pos = findall(indexin(losers, [w[1]]) .!= nothing)
-            deleteat!(losers, pos)
-        elseif mode == :min # return only the worst loser to eliminate him/her
-            minpair = dictcomp(w[2][end], <)
-            losers = minpair[1]
-        else
-            @assert false "mode must be either :min or :max (the default)"
+        # test if all losers can be removed without altering results
+        keepers = setdiff(Set(keys(result)), losers)
+        if (n_losers * minvote) <= minimum([result[step][i] for i in keepers])
+            # do nothing
+        else # eliminate one or more of the losers
+
+            # find the subset of ballots
+            bsub = findall(indexin(ballots[:, step], losers) .!= nothing)
+            # get the loser runoff partial result winner
+                quiet || println("\n\n\n*** BREAK TIE AMONG LOSERS ***")
+            w = vote_count(ballots[bsub, step:end], quiet=false, stopstep=3)
+                quiet || println("*** RETURN LOSERS AFTER TIE BROKEN ***\n\n\n")
+
+            # set the list of losers
+            if mode == :max  # return losers worse than the max loser to eliminate them
+                pos = findall(indexin(losers, [w[1]]) .!= nothing)
+                deleteat!(losers, pos)
+            elseif mode == :min # return only the worst loser to eliminate him/her
+                minpair = dictcomp(w[2][end], <)
+                losers = [minpair[1]]
+            else
+                @assert false "mode must be either :min or :max (the default)"
+            end
         end
     end
    
-    # index of voters who chose losing candidate(s)
+    # index of voters who chose losing candidate(s)--after losers updated to break the tie
     loseridx = findall(indexin(ballots[:, step], losers) .!= nothing)
 
     return minvote, losers, loseridx
@@ -202,6 +220,15 @@ function tie(d::Dict,n::Int)
 end
 
 
+"""
+    breakdown(ballot, type::Int)
+    breakdown(ballot, type::Float64) 
+
+Show the breakdown of votes across all ballots.
+The first method shows vote counts. The second
+method shows percentages. Use 1 or 1.0 for 
+the type argument.
+"""
 function breakdown(ballot, type::Int)
     n_cans = length(Set(ballot))
     n_steps = size(ballot, 2)
@@ -226,9 +253,14 @@ function breakdown(ballot, type::Float64)
     bd2
 end
 
+"""
+    circ(n, modulus)
 
+Return circular modulus so that n as any exact multple of modulus
+returns modulus rather than 0.
+"""
 function circ(n, modulus)
-    return n == modulus ? n : mod(n, modulus)
+    return n == modulus ? modulus : mod(n, modulus)
 end
 
 
