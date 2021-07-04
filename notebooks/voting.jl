@@ -23,7 +23,12 @@ using BenchmarkTools
 # %%
 includet("../source/simrankvoting.jl")
 
-# %% jupyter={"outputs_hidden": true} tags=[]
+# %%
+n_cans = 6 # number of candidates
+n_ranks = 4 # how many rankings for each candidate
+n_voters = 100
+
+# %% tags=[]
 # make an example
 
 ballots_1 = [
@@ -42,7 +47,7 @@ ballots_1 = [
 ]
 
 # %%
-countmap(ballots_1[:,1], alg=:dict)
+result = countmap(ballots_1[:,1], alg=:dict)
 
 # %%
 findmin(result)
@@ -153,10 +158,22 @@ ballots_6b = [
 ]
 
 # %%
+ballots_6c = [
+  1   2   0;
+  2   1   0;
+  3   0   0;
+  1   2   0;
+  2   1   0;
+]
+
+# %%
 vote_count(ballots_6, quiet=false)
 
 # %%
 vote_count(ballots_6b, quiet=false)
+
+# %%
+vote_count(ballots_6c, quiet=false)
 
 # %% tags=[]
 ballots_7 = [
@@ -171,7 +188,7 @@ ballots_7 = [
 ]
 
 # %%
-vote_count(ballots_7)
+vote_count(ballots_7, quiet=false)
 
 # %%
 ballots_5
@@ -238,6 +255,19 @@ w[1]
 
 # %%
 d = Dict(5=>0,4=>1,2=>1,3=>6)
+
+# %%
+@time kd = keys(d)
+
+# %%
+fieldnames(typeof(kd))
+
+# %%
+@show Base.summarysize(kd) 
+@show Base.summarysize(d)
+
+# %%
+typeof(values(d))
 
 # %%
 maxv = -typemin(Int)

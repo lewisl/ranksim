@@ -55,17 +55,17 @@ function instant_runoff!(result, ballots, step, useranks; stopstep::Int=0, quiet
                     @assert false "stopstep input must be an integer from 0 to 20"
                 end
 
-
     for step = 2:stopstep
+        quiet || print("\nStep $step: ")
         # start with results at end of previous round
         push!(result, copy(result[step-1])) 
 
         if length(keys(result[step]))  == 2
             # we must either have a winner or a tie
-            quiet || println("\nStep $step: \ngot to exactly 2 candidates")
+            quiet || println("got to exactly 2 candidates")
             if tie(result[step]) # we have a tie
                 quiet || begin
-                            println("starting position: Tie!"); pprintln(result[step])
+                            println("Starting position: Tie!"); pprintln(result[step])
                          end
                 losers = []; voteridx = 1:size(ballots,1) # setup allocate for ties: no losers; use all voters choices
                 reassigned = allocate_votes!(result, ballots, losers, step, voteridx, useranks)
@@ -82,13 +82,13 @@ function instant_runoff!(result, ballots, step, useranks; stopstep::Int=0, quiet
         elseif length(keys(result[step])) == 1
             # this must be the winner--or the algorithm didn't work
             quiet || begin
-                        println("\nStep $step: \ngot to exactly 1 candidate")
+                        println("got to exactly 1 candidate")
                         pprintln(result[step])
                      end
             break
         else   
             # we have 3 or more remaining candates
-            quiet || println("\nStep $step: \ngot to more than 3 candidates")
+            quiet || println("got to more than 3 candidates")
             if tie(result[step]) # we have a tie
                 quiet || begin
                             println("starting position"); println("Tie!"); pprintln(result[step])
@@ -102,7 +102,7 @@ function instant_runoff!(result, ballots, step, useranks; stopstep::Int=0, quiet
                 iswinner(result[end])[1] && break
             else
                 quiet || begin
-                            println("starting position");   pprintln(result[step])
+                            println("Starting position");   pprintln(result[step])
                         end
                 minvote, losers, voteridx = find_losers(ballots, min(step-1, n_ranks), result, quiet=quiet)
                 quiet || println("Eliminating candidates: $losers")
@@ -132,14 +132,11 @@ function allocate_votes!(result, ballots, losers, step, voteridx, useranks)
     # assign votes to remaining candidates and advance these voters userank
     for i in voteridx  # loop through voters who chose losers
         if useranks[i] > n_ranks
-            continue # voter i's ballot was exhausted by not using all ranks
+            continue # voter i's ballot is exhausted
         end
         oldvote = ballots[i, useranks[i]]
         while (useranks[i] += 1) <= n_ranks
             newvote = ballots[i, useranks[i]]
-            if newvote == 0
-                continue # 0 signifies that voter i did not choose any candidate for this ranked choice
-            end
             if haskey(currentresult, newvote)
                 currentresult[newvote] += 1 # assign votes to next choice
                 setindex!(reassigned, get(reassigned, oldvote=>newvote, 0) + 1, oldvote=>newvote)
@@ -158,7 +155,7 @@ end
 - :max -> return all but the candidate with the most 2-step votes among the tied losers
 """
 function find_losers(ballots, step, result; mode=:max, quiet=true)
-    minvote, losers = findallmins(result[step])
+    minvote, losers = allextreme(result[step], mode=:min)
     losers = collect(losers)
     n_losers = length(losers)
 
@@ -179,7 +176,7 @@ function find_losers(ballots, step, result; mode=:max, quiet=true)
 
             # set the list of losers
             if mode == :max  # return losers worse than the max loser to eliminate them
-                pos = findall(indexin(losers, [w[1]]) .!= nothing)
+                pos = findall(indexin(losers, w[1]) .!= nothing)
                 deleteat!(losers, pos)
             elseif mode == :min # return only the worst loser to eliminate him/her
                 minpair = dictcomp(w[2][end], <)
@@ -197,16 +194,19 @@ function find_losers(ballots, step, result; mode=:max, quiet=true)
 end
 
 
-function findallmins(result)
-    minv = minimum(values(result))
-    mindict = Dict(i => result[i] for i in keys(result) if result[i] == minv)
-    return minv, keys(mindict)
+function allextreme(result::Dict; mode)
+    f = if mode == :min; minimum; 
+            elseif mode == :max; maximum
+            else; @assert false "mode must be :min or :max"; end
+    val = f(values(result))
+    valdict = Dict(i => result[i] for i in keys(result) if result[i] == val)
+    return val, collect(keys(valdict))
 end
 
 
 function iswinner(result)
     pctofvotes = Dict(i => result[i] / sum(values(result)) for i in keys(result))
-    maxpct, maxcan = findmax(pctofvotes)
+    maxpct, maxcan = allextreme(pctofvotes, mode=:max)
     return maxpct > 0.5, maxcan
 end
 
